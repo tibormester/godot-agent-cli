@@ -1,0 +1,16 @@
+# Godot
+.godot/
+/android/
+
+# Node / client (dependency-free, but never commit a node_modules anywhere)
+node_modules/
+
+# Packaging output
+dist/
+
+# gdli runtime: launch logs + screenshot output
+*.gdli.log
+.gdli/
+screenshots/
+*.webp
+*.png.tmp

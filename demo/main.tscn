@@ -1,0 +1,28 @@
+[gd_scene format=3 uid="uid://wtx5b5vvfvah"]
+
+[ext_resource type="Script" uid="uid://dgwajjl1kakv3" path="res://demo/main.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://blvu8y104sv8g" path="res://icon.svg" id="2"]
+
+[node name="Main" type="Node2D" unique_id=953684110]
+script = ExtResource("1")
+
+[node name="Label" type="Label" parent="." unique_id=1584640713]
+offset_left = 40.0
+offset_top = 20.0
+offset_right = 240.0
+offset_bottom = 50.0
+text = "gdli demo"
+
+[node name="Sprite" type="Sprite2D" parent="." unique_id=1378069914]
+position = Vector2(300, 240)
+texture = ExtResource("2")
+
+[node name="Button" type="Button" parent="." unique_id=348234056]
+offset_left = 40.0
+offset_top = 80.0
+offset_right = 180.0
+offset_bottom = 116.0
+text = "Click Me"
+
+[node name="Mover" type="Node2D" parent="." unique_id=497555145]
+position = Vector2(100, 400)
