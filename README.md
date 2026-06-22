@@ -94,6 +94,12 @@ Each verb has a target policy; the client picks the process:
 - **editor** — `file *`, `scene save` (authoring). `launch --in-editor` / `kill --in-editor` drive the
   editor's own play/stop under the hood.
 
+**Auto-launch** (default): if a verb needs a live instance and none is running, the client spawns one
+first — the **game** by default, the **editor** for editor-only verbs (`file *`, `scene save`) — waits
+for it, then runs. It stays up for reuse (`gdli kill` to stop). Add `--headless` to instead spawn a
+*transient, no-window* instance for that one command and stop it after (ideal for stateless `eval` /
+compute).
+
 Snapshots are rooted at the **scene** (`current_scene` / `get_edited_scene_root()`), never `/root`,
 so editor GUI, autoloads, and the harness itself are excluded from diffs by construction.
 

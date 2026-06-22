@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
-const { send, projectRoot } = require('../src/client');
-const { fetchRegistry, matchVerb, parseArgs, resolvePort, clientErr, fetchMarks } = require('../src/router');
+const { send, projectRoot, probe, resolvePorts } = require('../src/client');
+const { fetchRegistry, matchVerb, parseArgs, resolvePort, clientErr, fetchMarks, resetPorts } = require('../src/router');
 const launch = require('../src/launch');
 const install = require('../src/install');
 const fmt = require('../src/format');
@@ -55,7 +55,7 @@ function emitErr(code, message, opts) {
 }
 
 function parseGlobals(argv) {
-  const opts = { json: false, data: false, game: false, editor: false, port: null, godot: null, scene: null, inEditor: false };
+  const opts = { json: false, data: false, game: false, editor: false, port: null, godot: null, scene: null, inEditor: false, headless: false };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -68,11 +68,78 @@ function parseGlobals(argv) {
       case '--in-editor': opts.inEditor = true; break;
       case '--godot': opts.godot = argv[++i]; break;
       case '--scene': opts.scene = argv[++i]; break;
+      case '--headless': opts.headless = true; break;
       case '--help': case '-h': rest.unshift('help'); break;
       default: rest.push(a);
     }
   }
   return { opts, rest };
+}
+
+// --- Auto-launch: if a verb needs a live instance and none is up, spawn one (default behavior).
+// Mode follows the verb's target — editor-only built-ins get an editor, everything else a game.
+async function anyInstanceUp() {
+  const { game, editor } = resolvePorts(process.cwd());
+  if (await probe(game)) return 'game';
+  if (await probe(editor)) return 'editor';
+  return null;
+}
+
+function autoLaunchMode(rest, opts) {
+  if (opts.editor) return 'editor';
+  if (opts.game) return 'game';
+  if (rest[0] === 'file') return 'editor';
+  if (rest[0] === 'scene' && rest[1] === 'save') return 'editor';
+  return 'game';
+}
+
+async function autoLaunch(mode, opts, headless) {
+  logSession(headless ? `${mode} (headless)` : mode);
+  const r = await launch.launch({ ...opts, editor: mode === 'editor', game: mode === 'game', headless });
+  if (r.ok === false || !r.port) {
+    throw clientErr(`auto-launch (${mode}${headless ? ', headless' : ''}) failed: ${r.line}`);
+  }
+  resetPorts();
+  return r;
+}
+
+// Guarantee an instance is available to serve this run. Returns a teardown fn (to stop a one-shot
+// headless instance) or null. With --headless, the spawned instance is transient and stopped after.
+async function ensureInstance(rest, opts) {
+  if (opts.port != null) return null; // explicit target — assume the caller manages it
+  const existing = await anyInstanceUp();
+
+  if (opts.headless) {
+    if (existing) {
+      if (!opts.json) process.stderr.write(`note: ${existing} already running — --headless ignored, using it\n`);
+      return null;
+    }
+    const mode = autoLaunchMode(rest, opts);
+    await autoLaunch(mode, opts, true);
+    if (!opts.json) process.stderr.write(`(spawned a headless ${mode} for this command; stopping it after)\n`);
+    return async () => { try { await launch.kill({ cwd: opts.cwd, [mode]: true }); } catch (e) {} };
+  }
+
+  if (existing) return null;
+
+  const mode = autoLaunchMode(rest, opts);
+  await autoLaunch(mode, opts, false);
+  if (!opts.json) process.stderr.write(`(auto-launched ${mode}; run 'gdli kill' to stop it)\n`);
+  return null;
+}
+
+// Once the verb's real target is known, make sure THAT mode is up — the registry-fetch launch may have
+// started the other one (e.g. a plugin editor-verb we couldn't classify up front). No-op for 'auto'
+// (any running instance satisfies it) and when not auto-launching.
+async function ensureTarget(target, opts) {
+  if (opts.headless || opts.port != null) return;
+  const mode = (opts.editor || target === 'editor') ? 'editor'
+    : (opts.game || target === 'game') ? 'game' : null;
+  if (mode == null) return;
+  const { game, editor } = resolvePorts(process.cwd());
+  if (await probe(mode === 'editor' ? editor : game)) return;
+  await autoLaunch(mode, opts, false);
+  if (!opts.json) process.stderr.write(`(auto-launched ${mode} for ${target}-target verb; 'gdli kill' to stop)\n`);
 }
 
 async function handleHelp(rest, opts) {
@@ -99,9 +166,14 @@ async function handleHelp(rest, opts) {
 }
 
 async function handleVerbs(opts) {
-  const registry = await fetchRegistry();
-  fmt.printLine(fmt.renderRegistry(registry), opts.json, registry);
-  return 0;
+  const teardown = await ensureInstance(['verbs'], opts);
+  try {
+    const registry = await fetchRegistry();
+    fmt.printLine(fmt.renderRegistry(registry), opts.json, registry);
+    return 0;
+  } finally {
+    if (teardown) await teardown();
+  }
 }
 
 async function handleScreenshot(verb, params, port, opts) {
@@ -156,26 +228,32 @@ async function handleCheck(opts) {
 }
 
 async function handleServerVerb(rest, opts) {
-  const registry = await fetchRegistry();
-  const verb = matchVerb(registry, rest);
-  if (!verb) {
-    throw clientErr(`unknown verb: ${rest.join(' ')}`);
-  }
+  const teardown = await ensureInstance(rest, opts);
+  try {
+    const registry = await fetchRegistry();
+    const verb = matchVerb(registry, rest);
+    if (!verb) {
+      throw clientErr(`unknown verb: ${rest.join(' ')}`);
+    }
 
-  const port = await resolvePort(verb.meta.target, opts);
-  const params = await parseArgs(verb.meta, verb.rest, { port, fetchMarks });
+    await ensureTarget(verb.meta.target, opts);
+    const port = await resolvePort(verb.meta.target, opts);
+    const params = await parseArgs(verb.meta, verb.rest, { port, fetchMarks });
 
-  if (verb.name === 'screenshot') {
-    return handleScreenshot(verb, params, port, opts);
-  }
+    if (verb.name === 'screenshot') {
+      return await handleScreenshot(verb, params, port, opts);
+    }
 
-  const res = await send(port, verb.name, params);
-  if (!res.ok) {
-    emitErr(res.err.code, res.err.message, opts);
-    return 1;
+    const res = await send(port, verb.name, params);
+    if (!res.ok) {
+      emitErr(res.err.code, res.err.message, opts);
+      return 1;
+    }
+    fmt.printOk(res.data, opts.json, res, opts.data);
+    return 0;
+  } finally {
+    if (teardown) await teardown();
   }
-  fmt.printOk(res.data, opts.json, res, opts.data);
-  return 0;
 }
 
 async function main() {

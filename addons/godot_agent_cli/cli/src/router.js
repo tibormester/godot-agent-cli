@@ -7,6 +7,12 @@ function ports() {
   if (!_ports) _ports = resolvePorts(process.cwd());
   return _ports;
 }
+// After an auto-launch the server writes a fresh ephemeral .gdli/<mode>.port; drop the cache so the
+// next lookup re-reads it (and clear the registry cache so we re-fetch from the new instance).
+function resetPorts() {
+  _ports = null;
+  _registry = null;
+}
 
 async function availablePort() {
   const { game, editor } = ports();
@@ -226,4 +232,4 @@ async function ensureUp(port, msg) {
   throw clientErr(msg);
 }
 
-module.exports = { fetchRegistry, matchVerb, parseArgs, resolvePort, clientErr, fetchMarks };
+module.exports = { fetchRegistry, matchVerb, parseArgs, resolvePort, clientErr, fetchMarks, resetPorts };

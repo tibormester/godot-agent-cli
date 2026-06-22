@@ -9,6 +9,7 @@ description: Use when developing or debugging a Godot 4.x project through the gd
 you never pick a port. Run `gdli verbs` for the live list, `gdli help <verb>` for one.
 
 ## Lifecycle (client-side)
+- **Auto-launch (default):** you don't have to `launch` first — any verb that needs an instance spawns one (game by default; editor for `file`/`scene save`) and leaves it up for reuse. `--headless <verb>` instead spawns a throwaway no-window instance for that one command and stops it after (ideal for stateless `eval` — rasterizing, compute, queries).
 - `gdli launch` — run the **game** (default). `gdli launch --editor` opens the editor; `--scene <path>` / `--godot <path>` optional.
 - `gdli launch --in-editor` — ask an open editor to play its current scene (game spawns as the editor's child).
 - `gdli status [path]` — what's running + ports. `gdli kill [--game|--editor|--in-editor]` — default kills both.

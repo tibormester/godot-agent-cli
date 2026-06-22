@@ -35,7 +35,9 @@ async function launch(opts) {
 
   const mode = opts.editor ? 'editor' : 'game';
   const godot = opts.godot || DEFAULT_GODOT;
-  const args = ['--path', root];
+  const args = [];
+  if (opts.headless) args.push('--headless');
+  args.push('--path', root);
   if (mode === 'editor') {
     args.push('-e');
   } else if (opts.scene) {
@@ -61,12 +63,13 @@ async function launch(opts) {
     await sleep(300);
   }
 
+  const tag = opts.headless ? `${mode} (headless)` : mode;
   if (port) {
-    return { line: `launched ${mode} pid=${child.pid} port=${port}`, ok: true };
+    return { line: `launched ${tag} pid=${child.pid} port=${port}`, ok: true, port, mode, pid: child.pid };
   }
   return {
-    line: `warning: ${mode} pid=${child.pid} did not report a port within 40s (still running, check ${logPath})`,
-    ok: true,
+    line: `warning: ${tag} pid=${child.pid} did not report a port within 40s (still running, check ${logPath})`,
+    ok: true, port: null, mode, pid: child.pid,
   };
 }
 

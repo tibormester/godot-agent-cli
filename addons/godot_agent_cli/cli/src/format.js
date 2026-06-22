@@ -75,6 +75,8 @@ const UNIVERSAL_FLAGS = `Universal flags (work on any verb):
   --time <s>        (with --diff/--mark) wait s seconds instead.
   --ignore <glob>   drop matching scene-relative paths from the diff (one-shot; e.g. Mover, UI/*).
   --data            show the verb's own data even when --diff is present.
+  --headless        if nothing's running, spawn a transient HEADLESS instance for this command only
+                    (no window) and stop it after. Best for stateless eval/compute.
   --json            machine-readable single-line output.
   --game / --editor / --port <n>   force the target instance.`;
 
@@ -82,7 +84,8 @@ const STATIC_USAGE = `gdli — Godot Agent CLI
 
 usage: gdli <verb> [args] [global flags]
 
-No Godot instance is running. Start one first:
+No Godot instance is running — but most verbs auto-launch one if needed (game by default; the
+editor for editor-only verbs). Add --headless for a transient, no-window run.
   gdli launch [--editor] [--scene <path>] [--godot <path>]   default: game
   gdli launch --in-editor                                    ask an open editor to play its scene
   gdli status [path]                                         report what's running for a project
