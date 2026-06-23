@@ -179,6 +179,7 @@ autowrap_mode = 3
 
 [node name="TerminalPanel" type="Control" parent="."]
 clip_contents = true
+mouse_filter = 2
 z_index = 50
 offset_left = 0.0
 offset_top = 320.0
