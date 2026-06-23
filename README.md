@@ -46,16 +46,10 @@ gdli gdli_plugin example setup --autoplay --record --record-seconds 45 --record-
 low-framerate scaled frames from the game viewport and encodes them with ffmpeg, defaulting to
 `res://addons/gdli_plugin_example/docs/assets/demo-autoplay.webm`.
 
-![gdli demo console](addons/gdli_plugin_example/docs/assets/demo-console.png)
+<video src="addons/gdli_plugin_example/docs/assets/demo-autoplay.webm" controls muted loop width="640"></video>
 
-After moving into range and clicking an enemy twice, the HP bar changes, damage text appears, the enemy
-is removed, and loot drops:
-
-![gdli click proof](addons/gdli_plugin_example/docs/assets/demo-after-click.png)
-
-Dragging dropped loot into an inventory slot demonstrates multi-step proof with `--mark` / `--diff`:
-
-![gdli inventory diff proof](addons/gdli_plugin_example/docs/assets/demo-diff-workflow.png)
+The walkthrough covers the terminal, click-to-attack proof, loot drops, and dragging loot into an
+inventory slot with `--mark` / `--diff`.
 
 Reproduce the demo proof flow:
 
