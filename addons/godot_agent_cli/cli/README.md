@@ -26,6 +26,8 @@ gdli kill                                     # stop everything (explicit: --bot
 ```
 (`gdli` after `npm i -g` / `npm link`; otherwise `node addons/godot_agent_cli/cli/bin/gdli.js <verb>`.)
 
+![gdli logo](../../gdli_plugin_example/docs/assets/gdli-logo.png)
+
 The bundled example plugin includes a demo scene at
 `res://addons/gdli_plugin_example/demo/main.tscn`: a small 2D arena game with a transparent in-game
 terminal overlay. WASD moves the player inside the ring, clicks swing a sword toward the pointer,
@@ -46,10 +48,14 @@ gdli gdli_plugin example setup --autoplay --record --record-seconds 45 --record-
 low-framerate scaled frames from the game viewport and encodes them with ffmpeg, defaulting to
 `res://addons/gdli_plugin_example/docs/assets/demo-autoplay.webm`.
 
-<video src="../../gdli_plugin_example/docs/assets/demo-autoplay.webm" controls muted loop width="640"></video>
+![gdli demo console](../../gdli_plugin_example/docs/assets/demo-console.png)
 
-The walkthrough covers the terminal, click-to-attack proof, loot drops, and dragging loot into an
-inventory slot with `--mark` / `--diff`.
+![gdli click proof](../../gdli_plugin_example/docs/assets/demo-after-click.png)
+
+![gdli inventory proof](../../gdli_plugin_example/docs/assets/demo-diff-workflow.png)
+
+The walkthrough covers the terminal, click-to-attack proof, loot drops, and inventory changes with
+the corresponding gdli command visible in the entry bar.
 
 Reproduce the demo proof flow:
 
