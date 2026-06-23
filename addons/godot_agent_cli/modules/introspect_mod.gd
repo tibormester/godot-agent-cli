@@ -1,9 +1,9 @@
 extends RefCounted
 ## introspect module — ClassDB queries (identical in editor and game).
 
-var s: GdliServer
+var s
 
-func register_into(server: GdliServer) -> void:
+func register_into(server) -> void:
 	s = server
 	s.registry.register("introspect", "class list", _list, {
 		"help": "instantiable classes, optionally filtered by substring / base class.",

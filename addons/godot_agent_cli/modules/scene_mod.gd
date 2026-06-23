@@ -1,9 +1,9 @@
 extends RefCounted
 ## scene module — structural tree + open/persist. Paths are relative to the scene root.
 
-var s: GdliServer
+var s
 
-func register_into(server: GdliServer) -> void:
+func register_into(server) -> void:
 	s = server
 	s.registry.register("scene", "scene tree", _tree, {
 		"help": "the scene tree (name/type/path/script), rooted at the scene.",
@@ -16,7 +16,10 @@ func register_into(server: GdliServer) -> void:
 	s.registry.register("scene", "scene load", _load, {
 		"help": "open a scene (editor) / change the running scene (game). Default = main scene.",
 		"target": "auto", "async": true,
-		"args": [{"name": "path", "type": "string", "required": false, "default": "", "help": "res:// scene path"}],
+		"args": [
+			{"name": "path", "type": "string", "required": false, "default": "", "help": "res:// scene path"},
+			{"name": "--main", "type": "bool", "required": false, "default": false, "help": "load the project main scene (default)"},
+		],
 	})
 	s.registry.register("scene", "scene save", _save, {
 		"help": "persist the scene to its .tscn (editor save; game pack+save).",
@@ -25,7 +28,7 @@ func register_into(server: GdliServer) -> void:
 	})
 
 func _tree(p: Dictionary) -> Variant:
-	var root := s.target_root()
+	var root = s.target_root()
 	if str(p.get("root", "")) != "":
 		root = s.resolve_node(str(p["root"]))
 	if root == null:
@@ -52,18 +55,20 @@ func _node_tree(scene_root: Node, node: Node, depth: int, d: int) -> Dictionary:
 
 func _load(p: Dictionary) -> Variant:
 	var path := str(p.get("path", ""))
+	if bool(p.get("main", false)):
+		path = ""
 	if path.is_empty():
 		path = str(ProjectSettings.get_setting("application/run/main_scene", ""))
 	if path.is_empty():
 		return s.err("bad_params", "no path and no main scene configured")
 	if s.is_editor():
-		var ei := s.editor_interface()
+		var ei = s.editor_interface()
 		if ei == null:
 			return s.err("editor_only", "EditorInterface unavailable")
 		ei.open_scene_from_path(path)
 		await s.get_tree().process_frame
 		return {"scene": path}
-	var e := s.get_tree().change_scene_to_file(path)
+	var e = s.get_tree().change_scene_to_file(path)
 	if e != OK:
 		return s.err("handler_error", "change_scene failed: " + error_string(e))
 	await s.get_tree().process_frame
@@ -72,10 +77,10 @@ func _load(p: Dictionary) -> Variant:
 func _save(p: Dictionary) -> Variant:
 	var path := str(p.get("path", ""))
 	if s.is_editor():
-		var ei := s.editor_interface()
+		var ei = s.editor_interface()
 		if ei == null:
 			return s.err("editor_only", "EditorInterface unavailable")
-		var root := s.target_root()
+		var root = s.target_root()
 		if root == null:
 			return s.err("not_found", "no scene open in the editor")
 		if path.is_empty():
@@ -83,7 +88,7 @@ func _save(p: Dictionary) -> Variant:
 			return {"saved": root.scene_file_path}
 		ei.save_scene_as(path)
 		return {"saved": path}
-	var groot := s.target_root()
+	var groot = s.target_root()
 	if groot == null:
 		return s.err("not_found", "no current scene")
 	if path.is_empty():

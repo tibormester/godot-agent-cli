@@ -1,6 +1,7 @@
 function printOk(data, json, env, showData) {
   const diff = env && env.diff;
   const marked = env && env.marked;
+  const warning = env && env.warning;
   // When a diff was requested, the diff IS the answer — suppress the verb's own data dump
   // (e.g. inspect's whole-scene snapshot) unless --data asks for it.
   const withData = showData || diff === undefined;
@@ -9,6 +10,7 @@ function printOk(data, json, env, showData) {
     if (withData) out.data = data;
     if (diff !== undefined) out.diff = diff;
     if (marked !== undefined) out.marked = marked;
+    if (warning !== undefined) out.warning = warning;
     process.stdout.write(JSON.stringify(out) + '\n');
   } else {
     if (withData) process.stdout.write(JSON.stringify(data, null, 2) + '\n');
@@ -76,7 +78,10 @@ const UNIVERSAL_FLAGS = `Universal flags (work on any verb):
   --ignore <glob>   drop matching scene-relative paths from the diff (one-shot; e.g. Mover, UI/*).
   --data            show the verb's own data even when --diff is present.
   --headless        if nothing's running, spawn a transient HEADLESS instance for this command only
-                    (no window) and stop it after. Best for stateless eval/compute.
+                    (no window) and stop it after. Bare eval does this by default when no instance is up.
+  --timeout <dur>   stop waiting after dur (e.g. 500ms, 5s, 2m; bare numbers are seconds).
+  --timewarning <dur>  warn after dur while still waiting. Use 0 to disable.
+                    With --diff/--mark, requested settle time is added to both budgets.
   --json            machine-readable single-line output.
   --game / --editor / --port <n>   force the target instance.`;
 
@@ -85,11 +90,12 @@ const STATIC_USAGE = `gdli — Godot Agent CLI
 usage: gdli <verb> [args] [global flags]
 
 No Godot instance is running — but most verbs auto-launch one if needed (game by default; the
-editor for editor-only verbs). Add --headless for a transient, no-window run.
-  gdli launch [--editor] [--scene <path>] [--godot <path>]   default: game
-  gdli launch --in-editor                                    ask an open editor to play its scene
+editor for editor-only verbs). Bare eval defaults to a transient, no-window run.
+  gdli launch [--game|--editor] [--scene <path>] [--godot <path>]   default: game
+      [--timeout <dur>] [--timewarning <dur>]                       save session defaults
+  gdli launch --in-editor                                    open editor if needed, then play its scene
   gdli status [path]                                         report what's running for a project
-  gdli kill [--editor|--game|--in-editor]                    default: both processes
+  gdli kill [--both|--all|--editor|--game|--in-editor]       default: both processes
 
 Set up the addon in your Godot project:
   gdli install [dir]                                         copy bundled addon (default: cwd)

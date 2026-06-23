@@ -1,38 +1,14 @@
 {
-  "name": "godot-agent-cli",
-  "version": "0.1.0",
-  "description": "Agent-facing CLI that drives a live Godot project over TCP/NDJSON, bundled with the matching GDScript addon.",
-  "license": "MIT",
-  "author": "Tibor",
-  "keywords": [
-    "godot",
-    "cli",
-    "agent",
-    "automation",
-    "testing",
-    "gdscript",
-    "game-dev"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/tibormester/godot-agent-cli.git"
+  "name": "godot-agent-cli-repo",
+  "private": true,
+  "description": "Repository workspace for the Godot Agent CLI addon. The publishable npm package lives in addons/godot_agent_cli.",
+  "scripts": {
+    "check": "node addons/godot_agent_cli/cli/bin/gdli.js check",
+    "package": "node addons/godot_agent_cli/scripts/package.mjs",
+    "npm:dry-run": "npm publish --dry-run --workspace=false ./addons/godot_agent_cli",
+    "npm:publish": "npm publish --workspace=false ./addons/godot_agent_cli"
   },
-  "homepage": "https://github.com/tibormester/godot-agent-cli#readme",
-  "bugs": {
-    "url": "https://github.com/tibormester/godot-agent-cli/issues"
-  },
-  "bin": {
-    "gdli": "addons/godot_agent_cli/cli/bin/gdli.js"
-  },
-  "files": [
-    "addons/godot_agent_cli",
-    "README.md",
-    "LICENSE"
-  ],
   "engines": {
     "node": ">=18"
-  },
-  "scripts": {
-    "package": "node scripts/package.mjs"
   }
 }

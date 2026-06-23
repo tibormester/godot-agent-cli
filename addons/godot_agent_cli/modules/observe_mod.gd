@@ -2,9 +2,9 @@ extends RefCounted
 ## observe module — the read surface. Rooted at the scene (never /root), so editor GUI / autoloads /
 ## the harness are excluded by construction. (--diff / --mark are core, applied to any verb.)
 
-var s: GdliServer
+var s
 
-func register_into(server: GdliServer) -> void:
+func register_into(server) -> void:
 	s = server
 	s.registry.register("observe", "inspect", _inspect, {
 		"help": "read the scene snapshot (path -> type/script/props); mints an @eN ref per node.",
@@ -12,6 +12,7 @@ func register_into(server: GdliServer) -> void:
 		"args": [
 			{"name": "--root", "type": "string", "required": false, "default": "", "help": "subtree root (path or @ref)"},
 			{"name": "--depth", "type": "int", "required": false, "default": -1, "help": "max depth (default: unbounded)"},
+			{"name": "--nodes", "type": "bool", "required": false, "default": false, "help": "include scene nodes (default)"},
 			{"name": "--full", "type": "bool", "required": false, "default": false, "help": "all storage props (vs salient set)"},
 			{"name": "--ui", "type": "bool", "required": false, "default": false, "help": "only visible Controls, each with its screen rect (for click --ref)"},
 		],
@@ -26,7 +27,7 @@ func register_into(server: GdliServer) -> void:
 	})
 
 func _inspect(p: Dictionary) -> Variant:
-	var root := s.target_root()
+	var root = s.target_root()
 	if str(p.get("root", "")) != "":
 		root = s.resolve_node(str(p["root"]))
 	if root == null:
@@ -34,12 +35,12 @@ func _inspect(p: Dictionary) -> Variant:
 	var depth := int(p.get("depth", -1))
 	if depth < 0:
 		depth = 1 << 30
-	var snap := s.diff.snapshot(root, depth, bool(p.get("full", false)))
+	var snap = s.diff.snapshot(root, depth, bool(p.get("full", false)))
 	# --ui: keep only visible Controls and attach each one's screen rect (the old `uisnapshot`).
-	if bool(p.get("ui", false)):
+	if bool(p.get("ui", false)) and not bool(p.get("nodes", false)):
 		var filtered := {}
 		for path in snap:
-			var n := (root if str(path) == "." else root.get_node_or_null(NodePath(str(path))))
+			var n: Node = root if str(path) == "." else root.get_node_or_null(NodePath(str(path)))
 			if n is Control and (n as Control).is_visible_in_tree():
 				var r := (n as Control).get_global_rect()
 				var entry: Dictionary = snap[path]
@@ -47,11 +48,11 @@ func _inspect(p: Dictionary) -> Variant:
 				filtered[path] = entry
 		snap = filtered
 	# Mint @eN refs for every reported node (resolvable later via @ref / used by input verbs).
-	var paths := snap.keys()
+	var paths: Array = snap.keys()
 	var nodes := []
 	for pth in paths:
 		nodes.append(root if str(pth) == "." else root.get_node_or_null(NodePath(str(pth))))
-	var refs := s.mint_refs(nodes)
+	var refs = s.mint_refs(nodes)
 	for i in paths.size():
 		(snap[paths[i]] as Dictionary)["ref"] = refs[i]
 	return snap
@@ -60,12 +61,12 @@ func _screenshot(p: Dictionary) -> Variant:
 	await s.get_tree().process_frame
 	var img: Image = null
 	if s.is_editor():
-		var ei := s.editor_interface()
+		var ei = s.editor_interface()
 		if ei == null:
 			return s.err("editor_only", "EditorInterface unavailable")
 		# The editor sub-viewport only renders while its main-screen panel is active, so switch to
 		# 2D/3D (per the scene root), let it render, capture, then restore the prior screen.
-		var root := s.target_root()
+		var root = s.target_root()
 		var screen := "3D" if root is Node3D else "2D"
 		var main: Node = ei.get_editor_main_screen()
 		var prev := ""

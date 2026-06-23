@@ -1,12 +1,12 @@
-# gdli — Godot Agent CLI
+﻿# gdli â€” Godot Agent CLI
 
-An agent-facing CLI that drives and observes **any** Godot 4.x project — in the **editor**
-(edit mode) and the **running game** (play mode) — over a tiny TCP/NDJSON link. Playwright-for-Godot.
+An agent-facing CLI that drives and observes **any** Godot 4.x project â€” in the **editor**
+(edit mode) and the **running game** (play mode) â€” over a tiny TCP/NDJSON link. Playwright-for-Godot.
 
 One shared GDScript core is hosted twice: as an `@tool EditorPlugin` (editor) and as an autoload (game).
 Each binds an **ephemeral** port and records it in `.gdli/<game|editor>.port` under the project root; a
 single dependency-free Node client discovers the right port from your cwd and routes each verb to the
-right process under the hood — you never pick a port.
+right process under the hood â€” you never pick a port.
 
 ```
 gdli launch                                  # run the game (default); explicit: gdli launch --game
@@ -46,16 +46,16 @@ gdli gdli_plugin example setup --autoplay --record --record-seconds 45 --record-
 low-framerate scaled frames from the game viewport and encodes them with ffmpeg, defaulting to
 `res://addons/gdli_plugin_example/docs/assets/demo-autoplay.webm`.
 
-![gdli demo console](addons/gdli_plugin_example/docs/assets/demo-console.png)
+![gdli demo console](../../gdli_plugin_example/docs/assets/demo-console.png)
 
 After moving into range and clicking an enemy twice, the HP bar changes, damage text appears, the enemy
 is removed, and loot drops:
 
-![gdli click proof](addons/gdli_plugin_example/docs/assets/demo-after-click.png)
+![gdli click proof](../../gdli_plugin_example/docs/assets/demo-after-click.png)
 
 Dragging dropped loot into an inventory slot demonstrates multi-step proof with `--mark` / `--diff`:
 
-![gdli inventory diff proof](addons/gdli_plugin_example/docs/assets/demo-diff-workflow.png)
+![gdli inventory diff proof](../../gdli_plugin_example/docs/assets/demo-diff-workflow.png)
 
 Reproduce the demo proof flow:
 
@@ -119,16 +119,16 @@ cd /path/to/your-godot-project
 gdli install .                # copies the bundled addon into addons/godot_agent_cli/
 ```
 
-**Via the Godot Asset Library (editor-first):** in Godot, **AssetLib → search "Godot Agent CLI" →
-Download → Install** (installs `addons/godot_agent_cli/`, CLI + skills included). Then either
+**Via the Godot Asset Library (editor-first):** in Godot, **AssetLib â†’ search "Godot Agent CLI" â†’
+Download â†’ Install** (installs `addons/godot_agent_cli/`, CLI + skills included). Then either
 `npm i -g godot-agent-cli` for a global `gdli`, or run the bundled client directly:
-`node addons/godot_agent_cli/cli/bin/gdli.js <verb>` (Node ≥18 required for the client).
+`node addons/godot_agent_cli/cli/bin/gdli.js <verb>` (Node â‰¥18 required for the client).
 
-Either way, enable the plugin in Godot: **Project → Project Settings → Plugins → Godot Agent CLI**
+Either way, enable the plugin in Godot: **Project â†’ Project Settings â†’ Plugins â†’ Godot Agent CLI**
 (registers the `@tool` EditorPlugin + the `GodotAgentCli` autoload). Live in the editor at once, in the
 game on run.
 
-- Godot binary: set `GODOT_BIN` or pass `--godot <path>` (default is the Windows 4.7-mono GUI exe) —
+- Godot binary: set `GODOT_BIN` or pass `--godot <path>` (default is the Windows 4.7-mono GUI exe) â€”
   only needed for `gdli launch` / headless `gdli check`; verbs that talk to an already-running instance
   don't need it.
 - No global install? Run `node addons/godot_agent_cli/cli/bin/gdli.js <verb>` directly, or `npm link`
@@ -137,14 +137,14 @@ game on run.
 
 ## Routing
 Each verb has a target policy; the client picks the process:
-- **auto** (most verbs) — the game if it's running, else the selected editor scene. Override with
+- **auto** (most verbs) â€” the game if it's running, else the selected editor scene. Override with
   `--game` / `--editor` / `--port`.
-- **game** — `input` (real input pipeline; inert in the editor).
-- **editor** — `file *`, `scene save` (authoring). `launch --in-editor` / `kill --in-editor` drive the
+- **game** â€” `input` (real input pipeline; inert in the editor).
+- **editor** â€” `file *`, `scene save` (authoring). `launch --in-editor` / `kill --in-editor` drive the
   editor's own play/stop under the hood.
 
 **Auto-launch** (default): if a verb needs a live instance and none is running, the client spawns one
-first — the **game** by default, the **editor** for editor-only verbs (`file *`, `scene save`) — waits
+first â€” the **game** by default, the **editor** for editor-only verbs (`file *`, `scene save`) â€” waits
 for it, then runs. It stays up for reuse (`gdli kill` to stop). Bare `gdli eval ...` is the exception:
 when no instance is running, it defaults to a *transient, no-window* game instance and stops it after
 the command. Add `--headless` to get that same one-shot behavior for other verbs.
@@ -162,18 +162,18 @@ thread unless the instance is a transient headless process that the client can k
 Snapshots are rooted at the **scene** (`current_scene` / `get_edited_scene_root()`), never `/root`,
 so editor GUI, autoloads, and the harness itself are excluded from diffs by construction.
 
-## Diffs & marks (core — any verb)
+## Diffs & marks (core â€” any verb)
 `--diff`, `--mark`, and the settle flags are handled by the **dispatcher**, so they work on *every* verb
 (built-ins and plugins) and never touch handler code:
-- `<verb> --diff` — snapshot the whole scene before/after the command, return the delta on the
+- `<verb> --diff` â€” snapshot the whole scene before/after the command, return the delta on the
   response (`diff: {added,removed,changed[{path,field,from,to}]}`). Most useful on mutating verbs:
-  `node add … --diff`, `click --ref '<Button ref>' --diff --ticks 1`.
-- `<verb> --mark <name>` — save the post-command scene as a named checkpoint; `gdli mark` lists them.
+  `node add â€¦ --diff`, `click --ref '<Button ref>' --diff --ticks 1`.
+- `<verb> --mark <name>` â€” save the post-command scene as a named checkpoint; `gdli mark` lists them.
   Re-marking the same name overwrites (there's no separate clear).
-- `<verb> --diff <name>` — compare the current scene against checkpoint `<name>` (cumulative change).
+- `<verb> --diff <name>` â€” compare the current scene against checkpoint `<name>` (cumulative change).
   The client matches the token after `--diff` against existing mark names; a non-match is treated as a
   bare `--diff` and left as a positional.
-- **Settle** — the snapshot delay (only with `--diff`/`--mark`; default = immediate): `--ticks <n>` idle
+- **Settle** â€” the snapshot delay (only with `--diff`/`--mark`; default = immediate): `--ticks <n>` idle
   frames, `--physics <n>` physics frames, or `--time <s>` seconds, so input/physics effects can land.
 - `--ignore <glob>` drops matching scene-relative paths from the delta (one-shot; `--ignore "UI/*"`
   hides matching UI subtrees).
@@ -183,57 +183,57 @@ so editor GUI, autoloads, and the harness itself are excluded from diffs by cons
   `gdli ignore remove TerminalPanel`, `gdli ignore clear`. These ignores are in-memory session state
   and reset when the process exits.
 
-With `--diff`, the client prints **only the diff** — the diff is the answer, so the verb's own data
+With `--diff`, the client prints **only the diff** â€” the diff is the answer, so the verb's own data
 (e.g. `inspect`'s whole-scene dump) is suppressed. Add `--data` to also show it (useful for the return
 value of `node call` / `eval`).
 
 ## Modules
 Everything is on by default; `config.json` is a denylist (`{"disabled":[...]}`). Toggle live with
 `gdli config --disable eval` / `--enable eval` (persists to `config.json`, no restart), or edit the
-file by hand / in the editor — the server mtime-watches it. `gdli config` reports the current state;
+file by hand / in the editor â€” the server mtime-watches it. `gdli config` reports the current state;
 `gdli verbs` prints the live registry (disabled modules vanish from both).
 
 | Module | Verbs | Target |
 |---|---|---|
 | core | `verbs` `config` `mark` `ignore list/add/remove/clear` `check` (+ client-side `launch`/`status`/`kill`) | meta |
-| scene | `scene tree` · `scene load` · `scene save` | auto · save→editor |
+| scene | `scene tree` Â· `scene load` Â· `scene save` | auto Â· saveâ†’editor |
 | node | `node get/set/add/remove/reparent/call/attach/detach` | auto |
-| observe | `inspect [--root --depth --full --ui]` (mints `@eN`; `--ui` = visible Controls + rects) · `screenshot` | auto |
+| observe | `inspect [--root --depth --full --ui]` (mints `@eN`; `--ui` = visible Controls + rects) Â· `screenshot` | auto |
 | input | `click drag release hover key act scroll` `enter text` (`--ref '@eN'`, `--mods`, `--button`, `drag --hold`, `key/act --hold --release`) | game |
-| introspect | `class list` · `class info` | auto |
-| eval | `eval <gdscript \| @handle>` · `--file` · `--save`/`--list`/`--entry` (`root`/`argv`/`gdli("…")` in scope) | auto |
+| introspect | `class list` Â· `class info` | auto |
+| eval | `eval <gdscript \| @handle>` Â· `--file` Â· `--save`/`--list`/`--entry` (`root`/`argv`/`gdli("â€¦")` in scope) | auto |
 | file | `file create/read/list/delete` | editor |
 
 `inspect --nodes` is accepted as the explicit default scene-node mode; `inspect --ui` narrows to visible Controls.
 
 ## Eval & macros
-`eval` is the escape hatch *and* the macro engine — one scripting surface, one vocabulary:
-- **Launch behavior** — if a game or editor instance is already running, `eval` uses it. If nothing is
+`eval` is the escape hatch *and* the macro engine â€” one scripting surface, one vocabulary:
+- **Launch behavior** â€” if a game or editor instance is already running, `eval` uses it. If nothing is
   running, bare `gdli eval ...` defaults to a transient headless game instance and tears it down after
   the command. Use `--game`, `--editor`, or `--port` when you want to force a specific live target.
-- **Forms** — a single expression (auto-returned), a statement block, or a full file (just write your
-  funcs incl. an entry — `func run():`, or name it and pass `--entry`; no base class to extend, and
+- **Forms** â€” a single expression (auto-returned), a statement block, or a full file (just write your
+  funcs incl. an entry â€” `func run():`, or name it and pass `--entry`; no base class to extend, and
   `root`/`argv`/`gdli()` are injected). The entry may take `argv` (`func run(argv):`) or read it
   ambiently. `eval --file <path>` runs a file; its compile errors surface automatically. For the whole
   project at once, use `gdli check` (below).
-- **In scope** — `root` (scene root), `argv` (tokens after `eval '@handle' …`), and **`gdli("verb args")`**,
-  which invokes any gdli verb by the *same string you'd type at the CLI* and returns its raw result —
+- **In scope** â€” `root` (scene root), `argv` (tokens after `eval '@handle' â€¦`), and **`gdli("verb args")`**,
+  which invokes any gdli verb by the *same string you'd type at the CLI* and returns its raw result â€”
   so you compose granular verbs without learning a second API:
   ```
   gdli eval --save child_count 'root.get_child_count()'
   gdli eval '@child_count'
   ```
-- **Macros** — `eval --save <name> "<code>"` stores the script in the gitignored `.gdli/handles/`,
-  `eval '@<name>' [args…]` runs it (args land in `argv`), `eval --list` lists them. Handles are *ephemeral*
-  by design — for persistent, shareable logic, write a plugin instead.
+- **Macros** â€” `eval --save <name> "<code>"` stores the script in the gitignored `.gdli/handles/`,
+  `eval '@<name>' [argsâ€¦]` runs it (args land in `argv`), `eval --list` lists them. Handles are *ephemeral*
+  by design â€” for persistent, shareable logic, write a plugin instead.
 
-`gdli("…")` runs in-process on eval's instance (no cross-instance routing) and obeys the same
+`gdli("â€¦")` runs in-process on eval's instance (no cross-instance routing) and obeys the same
 editor/game guards as a normal call.
 
 ## Check
 `gdli check` compile-checks every `.gd` under `res://` and prints `ok` (exit 0) or the files that fail
 to parse (exit 1). **Hybrid:** if an instance is running it checks there (instant); otherwise it spawns
-a quick headless Godot. Either way it reads current disk and covers the whole project — each script is
+a quick headless Godot. Either way it reads current disk and covers the whole project â€” each script is
 compiled in isolation, with its `class_name` (if any) blanked first so re-compiling an already-registered
 global class can't crash the engine. The offline path also surfaces the engine's parse-error message and
 line; the live path returns just the failing-file list.
@@ -241,18 +241,18 @@ line; the live path returns just the failing-file list.
 ## Agent skills
 Three Claude-style agent skills ship **inside the addon** at `addons/godot_agent_cli/skills/`, so they
 travel with both install paths:
-- **gdli-develop-debug** — develop/debug a project through gdli: launch, inspect & mutate the live tree,
+- **gdli-develop-debug** â€” develop/debug a project through gdli: launch, inspect & mutate the live tree,
   prove changes with diffs, script with `eval`.
-- **gdli-playtest-review** — verify a feature like a real player: screenshots + UI clicks by `@eN` ref,
+- **gdli-playtest-review** â€” verify a feature like a real player: screenshots + UI clicks by `@eN` ref,
   paired with scene-tree proof (no state-forcing shortcuts).
-- **gdli-maintain-extend** — work on the harness itself: architecture, codebase map, and how to add a
+- **gdli-maintain-extend** â€” work on the harness itself: architecture, codebase map, and how to add a
   verb or write a plugin.
 
 To use them with Claude Code, copy or symlink that folder's contents into your project's
 `.claude/skills/` (or point your agent harness at the directory).
 
 ## Extending with plugins
-Drop an addon folder containing a `gdli_module.gd` that exposes `register_into(server)` — the
+Drop an addon folder containing a `gdli_module.gd` that exposes `register_into(server)` â€” the
 harness auto-discovers it at boot (alongside the built-ins), its verbs join `verbs`, and they route by
 their `meta.target` with **zero client changes**. See `addons/gdli_plugin_example/gdli_module.gd`:
 
@@ -262,42 +262,42 @@ var server
 func register_into(srv) -> void:
 	server = srv
 	server.registry.register("gdli_plugin_example", "gdli_plugin example greet", _greet, {
-		"help": "demo plugin verb — greet by name.",
+		"help": "demo plugin verb â€” greet by name.",
 		"target": "game",
 		"args": [{"name": "name", "type": "string", "required": false, "default": "world", "help": "who to greet"}],
 	})
 func _greet(p): return {"greeting": "hello, %s" % str(p.get("name", "world"))}
 ```
 
-`server` is the live core — plugins call its helpers dynamically (no type import): `registry.register`,
+`server` is the live core â€” plugins call its helpers dynamically (no type import): `registry.register`,
 `to_json`/`from_json`,
 `resolve_node(path|@ref)`, `target_root()`, `is_editor()`, `diff.snapshot(root, depth)`, `mint_refs(nodes)`,
 `screen_pos(node|@ref)`, `call_gdli_string(cmd)`, `err(code, msg)`. The plugin's `module` name
 (`"gdli_plugin_example"`) is what `config --disable` toggles. A verb is
-`<module> <verb>` (multi-word); `name` is both the CLI path and the wire `cmd`. That's the whole contract —
+`<module> <verb>` (multi-word); `name` is both the CLI path and the wire `cmd`. That's the whole contract â€”
 this is exactly how a domain plugin (e.g. game-specific verbs over a C# backend) would attach.
 
-**Full authoring guide: [addons/godot_agent_cli/cli/docs/PLUGINS.md](addons/godot_agent_cli/cli/docs/PLUGINS.md)** — the `server` API, targeting/guards,
+**Full authoring guide: [docs/PLUGINS.md](docs/PLUGINS.md)** â€” the `server` API, targeting/guards,
 decoding/encoding typed values, reaching autoloads / a C# backend, and a worked example.
 
 ## Wire contracts
-- **Protocol** — one TCP conn per command: `{id,cmd,params}` → `{id,ok:true,data}` |
+- **Protocol** â€” one TCP conn per command: `{id,cmd,params}` â†’ `{id,ok:true,data}` |
   `{id,ok:false,err:{code,message}}` (codes `not_found`/`disabled`/`bad_params`/`handler_error`/`editor_only`/`game_only`).
-- **Codec** — non-JSON Variants encode as `{"__t":"Vector2","v":[1,2]}`, nodes as `{"__t":"Node","path":".."}`;
+- **Codec** â€” non-JSON Variants encode as `{"__t":"Vector2","v":[1,2]}`, nodes as `{"__t":"Node","path":".."}`;
   decode also accepts a Godot expression string (`"Vector2(1,2)"`).
-- **Registry** — `register(module, name, handler, meta)`; `name` is both the CLI path and the wire
-  `cmd`. A plugin registers the same way → its verbs appear in `verbs` and route with zero client changes.
-- **Diff/marks** — the dispatcher snapshots the whole scene (salient props) and attaches `diff` /
+- **Registry** â€” `register(module, name, handler, meta)`; `name` is both the CLI path and the wire
+  `cmd`. A plugin registers the same way â†’ its verbs appear in `verbs` and route with zero client changes.
+- **Diff/marks** â€” the dispatcher snapshots the whole scene (salient props) and attaches `diff` /
   `marked` to the response envelope; marks are per-instance in-memory. Verbs stay diff-agnostic.
-- **Refs** — `@eN` minted by `inspect` (incl. `--ui`), resolved before node lookup.
+- **Refs** â€” `@eN` minted by `inspect` (incl. `--ui`), resolved before node lookup.
 
 ## Test
-The tool tests itself — drive it by hand against a live instance: `gdli launch`, then exercise verbs and
+The tool tests itself â€” drive it by hand against a live instance: `gdli launch`, then exercise verbs and
 assert with the structural diff (`<verb> --diff`) or `eval`. `gdli launch --editor` covers the editor /
 `file *` / `--in-editor` paths.
 
-Every failed command is appended to `.gdli/failures.log` (timestamp · command · error), segmented by a
-per-`launch` session marker that's written only for runs that actually fail — review it to see what went
+Every failed command is appended to `.gdli/failures.log` (timestamp Â· command Â· error), segmented by a
+per-`launch` session marker that's written only for runs that actually fail â€” review it to see what went
 wrong during a run; a clean run leaves nothing behind.
 
 ## Notes & scope
@@ -309,5 +309,5 @@ wrong during a run; a clean run leaves nothing behind.
 - One game per editor (within a project); no multi-client / movie capture (out of scope by design).
 
 ## License
-[MIT](LICENSE) © Tibor. The bundled addon carries its own copy of the license at
+[MIT](../LICENSE) Â© Tibor. The bundled addon carries its own copy of the license at
 `addons/godot_agent_cli/LICENSE`.

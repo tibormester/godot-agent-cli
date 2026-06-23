@@ -1,0 +1,235 @@
+[gd_scene format=3 uid="uid://wtx5b5vvfvah"]
+
+[ext_resource type="Script" uid="uid://dgwajjl1kakv3" path="res://addons/gdli_plugin_example/demo/main.gd" id="1"]
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+z_index = -100
+offset_right = 1280.0
+offset_bottom = 720.0
+color = Color(0.055, 0.063, 0.07, 1)
+
+[node name="Arena" type="Node2D" parent="."]
+
+[node name="Enemies" type="Node2D" parent="Arena"]
+
+[node name="Loot" type="Node2D" parent="Arena"]
+
+[node name="Player" type="Node2D" parent="Arena"]
+position = Vector2(640, 250)
+
+[node name="Body" type="Node2D" parent="Arena/Player"]
+
+[node name="SwordArc" type="Node2D" parent="Arena/Player"]
+visible = false
+modulate = Color(0.55, 1, 0.72, 0.88)
+
+[node name="Window" type="Polygon2D" parent="Arena/Player/SwordArc"]
+position = Vector2(54, 0)
+polygon = PackedVector2Array(-26, -18, 26, -18, 26, 18, -26, 18)
+color = Color(0.05, 0.09, 0.1, 1)
+
+[node name="Header" type="Polygon2D" parent="Arena/Player/SwordArc"]
+position = Vector2(54, -12)
+polygon = PackedVector2Array(-26, -6, 26, -6, 26, 6, -26, 6)
+color = Color(0.12, 0.18, 0.2, 1)
+
+[node name="Border" type="Line2D" parent="Arena/Player/SwordArc"]
+position = Vector2(54, 0)
+points = PackedVector2Array(-26, -18, 26, -18, 26, 18, -26, 18, -26, -18)
+width = 3.0
+default_color = Color(0.43, 0.91, 0.72, 1)
+
+[node name="Prompt" type="Line2D" parent="Arena/Player/SwordArc"]
+position = Vector2(43, 5)
+points = PackedVector2Array(-9, -8, 0, 0, -9, 8)
+width = 4.0
+default_color = Color(0.43, 0.91, 0.72, 1)
+
+[node name="Cursor" type="Polygon2D" parent="Arena/Player/SwordArc"]
+position = Vector2(63, 8)
+polygon = PackedVector2Array(-10, -3, 10, -3, 10, 3, -10, 3)
+color = Color(0.82, 0.98, 0.9, 1)
+
+[node name="Hud" type="CanvasLayer" parent="."]
+
+[node name="StatusLabel" type="Label" parent="Hud"]
+offset_left = 28.0
+offset_top = 24.0
+offset_right = 442.0
+offset_bottom = 86.0
+theme_override_colors/font_color = Color(0.9, 0.96, 1, 1)
+theme_override_font_sizes/font_size = 20
+text = "Wave 1  Enemies 0  Loot 0
+WASD moves. Click swings. Drag loot into inventory."
+
+[node name="InventoryPanel" type="PanelContainer" parent="Hud"]
+offset_left = 920.0
+offset_top = 24.0
+offset_right = 1130.0
+offset_bottom = 230.0
+
+[node name="Margin" type="MarginContainer" parent="Hud/InventoryPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="Rows" type="VBoxContainer" parent="Hud/InventoryPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Hud/InventoryPanel/Margin/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Inventory"
+
+[node name="Slots" type="GridContainer" parent="Hud/InventoryPanel/Margin/Rows"]
+layout_mode = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="Slot1" type="Button" parent="Hud/InventoryPanel/Margin/Rows/Slots"]
+custom_minimum_size = Vector2(80, 80)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Empty"
+
+[node name="Slot2" type="Button" parent="Hud/InventoryPanel/Margin/Rows/Slots"]
+custom_minimum_size = Vector2(80, 80)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Empty"
+
+[node name="Slot3" type="Button" parent="Hud/InventoryPanel/Margin/Rows/Slots"]
+custom_minimum_size = Vector2(80, 80)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Empty"
+
+[node name="Slot4" type="Button" parent="Hud/InventoryPanel/Margin/Rows/Slots"]
+custom_minimum_size = Vector2(80, 80)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Empty"
+
+[node name="WavePopup" type="PanelContainer" parent="Hud"]
+visible = false
+mouse_filter = 2
+offset_left = 470.0
+offset_top = 112.0
+offset_right = 810.0
+offset_bottom = 224.0
+
+[node name="Margin" type="MarginContainer" parent="Hud/WavePopup"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="Rows" type="VBoxContainer" parent="Hud/WavePopup/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Hud/WavePopup/Margin/Rows"]
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 18
+text = "Wave cleared"
+
+[node name="NextWaveButton" type="Button" parent="Hud/WavePopup/Margin/Rows"]
+custom_minimum_size = Vector2(260, 42)
+layout_mode = 2
+focus_mode = 0
+text = "Start Wave 2"
+
+[node name="TutorialPopup" type="PanelContainer" parent="Hud"]
+visible = false
+offset_left = 28.0
+offset_top = 98.0
+offset_right = 612.0
+offset_bottom = 260.0
+
+[node name="Margin" type="MarginContainer" parent="Hud/TutorialPopup"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="Rows" type="VBoxContainer" parent="Hud/TutorialPopup/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Hud/TutorialPopup/Margin/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "gdli tutorial"
+
+[node name="Body" type="Label" parent="Hud/TutorialPopup/Margin/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Press Enter to run the typed command."
+autowrap_mode = 3
+
+[node name="TerminalPanel" type="Control" parent="."]
+clip_contents = true
+z_index = 50
+offset_left = 0.0
+offset_top = 320.0
+offset_right = 1280.0
+offset_bottom = 720.0
+
+[node name="TerminalShade" type="ColorRect" parent="TerminalPanel"]
+mouse_filter = 2
+offset_right = 1280.0
+offset_bottom = 400.0
+color = Color(0.02, 0.024, 0.028, 0.34)
+
+[node name="TerminalOutput" type="RichTextLabel" parent="TerminalPanel"]
+offset_left = 28.0
+offset_top = 18.0
+offset_right = 1192.0
+offset_bottom = 330.0
+bbcode_enabled = false
+scroll_active = true
+selection_enabled = true
+text = "type gdli --help for info"
+
+[node name="TutorialButton" type="Button" parent="TerminalPanel"]
+offset_left = 1204.0
+offset_top = 18.0
+offset_right = 1252.0
+offset_bottom = 66.0
+theme_override_font_sizes/font_size = 24
+text = "?"
+
+[node name="InputRow" type="HBoxContainer" parent="TerminalPanel"]
+offset_left = 28.0
+offset_top = 344.0
+offset_right = 1252.0
+offset_bottom = 390.0
+theme_override_constants/separation = 10
+
+[node name="Prompt" type="Label" parent="TerminalPanel/InputRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "$"
+
+[node name="CommandInput" type="TextEdit" parent="TerminalPanel/InputRow"]
+custom_minimum_size = Vector2(1080, 42)
+layout_mode = 2
+scroll_fit_content_height = false
+wrap_mode = 1
+placeholder_text = ""
+
+[node name="SubmitButton" type="Button" parent="TerminalPanel/InputRow"]
+custom_minimum_size = Vector2(74, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "➜"

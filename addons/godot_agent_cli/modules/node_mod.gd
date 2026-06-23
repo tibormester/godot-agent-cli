@@ -2,9 +2,9 @@ extends RefCounted
 ## node module — generic node CRUD + method calls, all through the codec. Paths relative to the
 ## scene root; @eN refs accepted anywhere a path is.
 
-var s: GdliServer
+var s
 
-func register_into(server: GdliServer) -> void:
+func register_into(server) -> void:
 	s = server
 	var path_arg := {"name": "path", "type": "string", "required": true, "default": "", "help": "node path or @ref"}
 	s.registry.register("node", "node get", _node_get, {
@@ -52,7 +52,7 @@ func register_into(server: GdliServer) -> void:
 	})
 
 func _node_get(p: Dictionary) -> Variant:
-	var node := s.resolve_node(str(p.get("path", "")))
+	var node = s.resolve_node(str(p.get("path", "")))
 	if node == null:
 		return s.err("not_found", "node not found: " + str(p.get("path", "")))
 	var props := {}
@@ -88,7 +88,7 @@ func _node_get(p: Dictionary) -> Variant:
 	return data
 
 func _node_set(p: Dictionary) -> Variant:
-	var node := s.resolve_node(str(p.get("path", "")))
+	var node = s.resolve_node(str(p.get("path", "")))
 	if node == null:
 		return s.err("not_found", "node not found: " + str(p.get("path", "")))
 	var prop := str(p.get("property", ""))
@@ -98,7 +98,7 @@ func _node_set(p: Dictionary) -> Variant:
 	return {"path": s.rel_path(node), "property": prop, "value": s.to_json(node.get(prop))}
 
 func _add(p: Dictionary) -> Variant:
-	var parent := s.resolve_node(str(p.get("parent", "")))
+	var parent = s.resolve_node(str(p.get("parent", "")))
 	if parent == null:
 		return s.err("not_found", "parent not found: " + str(p.get("parent", "")))
 	var type := str(p.get("type", ""))
@@ -113,33 +113,33 @@ func _add(p: Dictionary) -> Variant:
 	for k in props:
 		node.set(k, s.from_json(props[k]))
 	parent.add_child(node)
-	var root := s.target_root()
+	var root = s.target_root()
 	if root != null:
 		node.owner = root
 	return {"path": s.rel_path(node), "type": type, "name": str(node.name)}
 
 func _remove(p: Dictionary) -> Variant:
-	var node := s.resolve_node(str(p.get("path", "")))
+	var node = s.resolve_node(str(p.get("path", "")))
 	if node == null:
 		return s.err("not_found", "node not found: " + str(p.get("path", "")))
-	var rel := s.rel_path(node)
+	var rel = s.rel_path(node)
 	var name := str(node.name)
 	node.get_parent().remove_child(node)
 	node.queue_free()
 	return {"removed": rel, "name": name}
 
 func _reparent(p: Dictionary) -> Variant:
-	var node := s.resolve_node(str(p.get("path", "")))
+	var node = s.resolve_node(str(p.get("path", "")))
 	if node == null:
 		return s.err("not_found", "node not found: " + str(p.get("path", "")))
-	var np := s.resolve_node(str(p.get("new_parent", "")))
+	var np = s.resolve_node(str(p.get("new_parent", "")))
 	if np == null:
 		return s.err("not_found", "new parent not found: " + str(p.get("new_parent", "")))
 	node.reparent(np)
 	return {"path": s.rel_path(node), "name": str(node.name)}
 
 func _call(p: Dictionary) -> Variant:
-	var node := s.resolve_node(str(p.get("path", "")))
+	var node = s.resolve_node(str(p.get("path", "")))
 	if node == null:
 		return s.err("not_found", "node not found: " + str(p.get("path", "")))
 	var method := str(p.get("method", ""))
@@ -151,7 +151,7 @@ func _call(p: Dictionary) -> Variant:
 	return s.to_json(node.callv(method, args))
 
 func _attach(p: Dictionary) -> Variant:
-	var node := s.resolve_node(str(p.get("path", "")))
+	var node = s.resolve_node(str(p.get("path", "")))
 	if node == null:
 		return s.err("not_found", "node not found: " + str(p.get("path", "")))
 	var sp := str(p.get("script", ""))
@@ -162,7 +162,7 @@ func _attach(p: Dictionary) -> Variant:
 	return {"path": s.rel_path(node), "script": sp}
 
 func _detach(p: Dictionary) -> Variant:
-	var node := s.resolve_node(str(p.get("path", "")))
+	var node = s.resolve_node(str(p.get("path", "")))
 	if node == null:
 		return s.err("not_found", "node not found: " + str(p.get("path", "")))
 	node.set_script(null)

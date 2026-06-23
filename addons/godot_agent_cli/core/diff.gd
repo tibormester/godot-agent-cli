@@ -11,18 +11,20 @@ const SALIENT := [
 	"current", "enabled", "stream", "playing",
 ]
 
-func snapshot(root: Node, depth: int, full := false) -> Dictionary:
+func snapshot(root: Node, depth: int, full := false, ignores: Array = []) -> Dictionary:
 	var out := {}
 	if root != null:
-		_walk(root, root, depth, 0, out, full)
+		_walk(root, root, depth, 0, out, full, ignores)
 	return out
 
-func _walk(root: Node, node: Node, depth: int, d: int, out: Dictionary, full: bool) -> void:
+func _walk(root: Node, node: Node, depth: int, d: int, out: Dictionary, full: bool, ignores: Array) -> void:
 	var rel := "." if node == root else str(root.get_path_to(node))
+	if rel != "." and _ignored(rel, ignores):
+		return
 	out[rel] = _capture(node, full)
 	if d < depth:
 		for c in node.get_children():
-			_walk(root, c, depth, d + 1, out, full)
+			_walk(root, c, depth, d + 1, out, full, ignores)
 
 func _capture(node: Node, full: bool) -> Dictionary:
 	var e := {"type": node.get_class()}
@@ -78,7 +80,7 @@ func _diff_entry(path: String, a: Dictionary, b: Dictionary, changed: Array) -> 
 			changed.append({"path": path, "field": k, "from": ap[k], "to": null})
 
 func _eq(a: Variant, b: Variant) -> bool:
-	return JSON.stringify(a) == JSON.stringify(b)
+	return a == b
 
 func filter_delta(delta: Dictionary, ignores: Array) -> Dictionary:
 	# Drop added/removed/changed entries whose scene-relative path matches an ignore token.

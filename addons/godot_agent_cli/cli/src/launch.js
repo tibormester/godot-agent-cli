@@ -1,7 +1,8 @@
-const { spawn, execFileSync, spawnSync } = require('child_process');
+const { spawn, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { probe, send, resolvePorts, projectRoot } = require('./client');
+const timing = require('./timing');
 
 // Default to the GUI exe (single process) NOT the _console.exe wrapper: the wrapper relaunches
 // the editor as a sibling process the pid-tree kill misses, leaving orphan windows. Set GODOT_BIN
@@ -23,17 +24,39 @@ function sleep(ms) {
 async function launch(opts) {
   const root = projectRoot(opts.cwd);
 
-  // --in-editor: don't spawn a process; ask an already-open editor to play its current scene.
+  // --in-editor: use an open editor when available; otherwise start one, then ask it to play.
   if (opts.inEditor) {
-    const ps = resolvePorts(root);
-    if (!(await probe(ps.editor))) {
-      return { line: 'editor not running (gdli launch --editor first)', ok: false };
+    if (opts.saveTiming) {
+      timing.saveSessionTiming(root, 'editor', {
+        timeoutMs: opts.timeoutMs ?? timing.DEFAULT_TIMEOUT_MS,
+        warningMs: opts.warningMs ?? timing.DEFAULT_WARNING_MS,
+      });
     }
-    const res = await send(ps.editor, 'play', {});
-    return { line: res.ok ? 'editor: play started' : `play failed: ${res.err && res.err.message}`, ok: !!res.ok };
+    const ps = resolvePorts(root);
+    let editorPort = ps.editor;
+    let launched = null;
+    if (!(await probe(editorPort))) {
+      launched = await launch({ ...opts, inEditor: false, editor: true, game: false });
+      if (launched.ok === false || !launched.port) {
+        return {
+          line: `editor launch failed: ${launched.line}`,
+          ok: false,
+        };
+      }
+      editorPort = launched.port;
+    }
+    const res = await send(editorPort, 'play', {}, undefined, timing.sendOptions(opts, 'editor'));
+    const prefix = launched ? `${launched.line}\n` : '';
+    return { line: res.ok ? `${prefix}editor: play started` : `${prefix}play failed: ${res.err && res.err.message}`, ok: !!res.ok };
   }
 
   const mode = opts.editor ? 'editor' : 'game';
+  if (opts.saveTiming) {
+    timing.saveSessionTiming(root, mode, {
+      timeoutMs: opts.timeoutMs ?? timing.DEFAULT_TIMEOUT_MS,
+      warningMs: opts.warningMs ?? timing.DEFAULT_WARNING_MS,
+    });
+  }
   const godot = opts.godot || DEFAULT_GODOT;
   const args = [];
   if (opts.headless) args.push('--headless');
@@ -111,7 +134,7 @@ async function kill(opts) {
   if (opts.inEditor) {
     const ps = resolvePorts(root);
     if (await probe(ps.editor)) {
-      const res = await send(ps.editor, 'stop', {});
+      const res = await send(ps.editor, 'stop', {}, undefined, timing.sendOptions(opts, 'editor'));
       return { line: res.ok ? 'editor: stopped game' : `stop failed: ${res.err && res.err.message}` };
     }
     return { line: 'editor not running' };
@@ -138,18 +161,14 @@ async function kill(opts) {
 
 // Headless compile-check fallback for `gdli check` when no instance is running: boot Godot with the
 // bundled checker script and parse its JSON sentinel + the engine's parse-error text (file:line).
-function check(opts) {
+async function check(opts) {
   const root = projectRoot(opts.cwd);
   const godot = opts.godot || DEFAULT_GODOT;
   const checkerDisk = path.join(root, 'addons', 'godot_agent_cli', 'tools', 'check.gd');
   if (!fs.existsSync(checkerDisk)) {
     return { error: `checker missing (${checkerDisk}); run 'gdli install'` };
   }
-  const r = spawnSync(
-    godot,
-    ['--headless', '--path', root, '--script', 'res://addons/godot_agent_cli/tools/check.gd'],
-    { encoding: 'utf8', timeout: 120000 }
-  );
+  const r = await runGodotCheck(godot, root, opts);
   if (r.error) {
     if (r.error.code === 'ENOENT') return { error: `Godot binary not found: ${godot} (set GODOT_BIN or --godot)` };
     return { error: `check failed to run: ${r.error.message}` };
@@ -166,7 +185,58 @@ function check(opts) {
     .split(/\r?\n/)
     .map((l) => l.replace(/\s+$/, ''))
     .filter((l) => l.trim() && /SCRIPT ERROR|Parse Error|at: GDScript::reload/i.test(l));
-  return { failures, errLines };
+  return { failures, errLines, warning: r.warning };
+}
+
+function runGodotCheck(godot, root, opts) {
+  return new Promise((resolve) => {
+    const timeoutMs = opts.timeoutMs ?? 120000;
+    const warningMs = Math.max(0, Number(opts.warningMs ?? 0));
+    const child = spawn(
+      godot,
+      ['--headless', '--path', root, '--script', 'res://addons/godot_agent_cli/tools/check.gd'],
+      { stdio: ['ignore', 'pipe', 'pipe'] }
+    );
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    let warned = false;
+    const startedAt = Date.now();
+    const warningTimer = warningMs > 0 ? setTimeout(() => {
+      if (settled) return;
+      warned = true;
+      if (!opts.json) process.stderr.write(`warning: command still running after ${Date.now() - startedAt}ms\n`);
+    }, warningMs) : null;
+    const timeoutTimer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      if (warningTimer) clearTimeout(warningTimer);
+      try { execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); } catch (e) {
+        try { child.kill('SIGKILL'); } catch (_e) {}
+      }
+      resolve({ error: new Error(`request timed out after ${timeoutMs}ms`) });
+    }, timeoutMs);
+    child.stdout.on('data', (chunk) => { stdout += chunk.toString('utf8'); });
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString('utf8'); });
+    child.once('error', (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutTimer);
+      if (warningTimer) clearTimeout(warningTimer);
+      resolve({ error });
+    });
+    child.once('close', () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutTimer);
+      if (warningTimer) clearTimeout(warningTimer);
+      resolve({
+        stdout,
+        stderr,
+        warning: warned ? { code: 'slow_command', elapsed_ms: Date.now() - startedAt } : undefined,
+      });
+    });
+  });
 }
 
 module.exports = { launch, status, kill, check, projectRoot, DEFAULT_GODOT };

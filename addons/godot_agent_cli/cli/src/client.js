@@ -25,21 +25,35 @@ function probe(port, host = HOST, timeout = 600) {
   });
 }
 
-function send(port, cmd, params = {}, host = HOST) {
+function send(port, cmd, params = {}, host = HOST, opts = {}) {
   return new Promise((resolve, reject) => {
     const id = crypto.randomUUID();
     const sock = new net.Socket();
     let buffer = '';
     let settled = false;
+    let warned = false;
+    const timeoutMs = Math.max(1, Number(opts.timeoutMs ?? 30000));
+    const warningMs = Math.max(0, Number(opts.warningMs ?? 0));
+    const settleAllowanceMs = Math.max(0, Number(opts.settleAllowanceMs ?? 0));
+    const startedAt = Date.now();
+    let warningTimer = null;
     const fail = (e) => {
       if (settled) return;
       settled = true;
+      if (warningTimer) clearTimeout(warningTimer);
       sock.destroy();
       reject(e);
     };
-    sock.setTimeout(30000);
+    if (warningMs > 0) {
+      warningTimer = setTimeout(() => {
+        if (settled) return;
+        warned = true;
+        if (opts.onWarning) opts.onWarning(Date.now() - startedAt, { settleAllowanceMs });
+      }, warningMs);
+    }
+    sock.setTimeout(timeoutMs);
     sock.once('error', fail);
-    sock.once('timeout', () => fail(new Error('request timed out')));
+    sock.once('timeout', () => fail(new Error(`request timed out after ${timeoutMs}ms`)));
     sock.connect(port, host, () => {
       sock.write(JSON.stringify({ id, cmd, params }) + '\n');
     });
@@ -49,12 +63,20 @@ function send(port, cmd, params = {}, host = HOST) {
       if (idx === -1) return;
       const line = buffer.slice(0, idx);
       settled = true;
+      if (warningTimer) clearTimeout(warningTimer);
       sock.destroy();
       let msg;
       try {
         msg = JSON.parse(line);
       } catch (e) {
         return reject(new Error('invalid response from server: ' + line));
+      }
+      if (warned && msg && typeof msg === 'object') {
+        msg.warning = msg.warning || {
+          code: 'slow_command',
+          elapsed_ms: Date.now() - startedAt,
+          settle_allowance_ms: settleAllowanceMs,
+        };
       }
       resolve(msg);
     });

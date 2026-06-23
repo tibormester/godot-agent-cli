@@ -36,6 +36,7 @@ var _refs := {}               # "@eN" -> live Node (path-independent; survives r
 var _ref_by_id := {}          # node instance_id -> "@eN" (reuse the same ref for the same node)
 var _ref_seq := 0             # monotonic ref counter (stable across calls, never reset)
 var _marks := {}              # mark name -> snapshot (named diff checkpoints)
+var _global_ignores: Array = [] # process-local diff ignore globs; changed via ignore add/remove/clear
 var _config_mtime := 0
 var _bound_port := 0          # actual port we ended up listening on
 
@@ -168,6 +169,13 @@ func _handle(c: Dictionary, line: String) -> void:
 
 func _dispatch(c: Dictionary, id: String, cmd: String, params: Dictionary) -> void:
 	_maybe_reload_config()
+	if cmd == "__gdli_run":
+		var tokens: Variant = params.get("tokens", [])
+		if not (tokens is Array):
+			_reply_err(c, id, "bad_params", "__gdli_run expects tokens:Array")
+			return
+		await _dispatch_tokens(c, id, tokens)
+		return
 	# Reserved control commands (not registry verbs, so they never show in `verbs`): editor run control
 	# that the client sends for `launch --in-editor` / `kill --in-editor`.
 	if cmd == "play" or cmd == "stop":
@@ -193,13 +201,14 @@ func _dispatch(c: Dictionary, id: String, cmd: String, params: Dictionary) -> vo
 	var want_diff := params.has("diff")
 	var mark_name := str(params.get("mark", ""))
 	var diff_mark := ""
+	var ignores := _ignore_list(params)
 	var before := {}
 	if want_diff:
 		var dv: Variant = params["diff"]
 		if dv is String and not (dv as String).is_empty() and _marks.has(dv):
 			diff_mark = dv
 		else:
-			before = _scene_snapshot()
+			before = _scene_snapshot(ignores)
 
 	var result: Variant
 	if meta.get("async", false):
@@ -213,10 +222,10 @@ func _dispatch(c: Dictionary, id: String, cmd: String, params: Dictionary) -> vo
 	var response := {"id": id, "ok": true, "data": result}
 	if want_diff or not mark_name.is_empty():
 		await _settle(params)
-		var after := _scene_snapshot()
+		var after := _scene_snapshot(ignores)
 		if want_diff:
 			var base: Dictionary = _marks.get(diff_mark, {}) if not diff_mark.is_empty() else before
-			response["diff"] = diff.filter_delta(diff.compare(base, after), _ignore_list(params))
+			response["diff"] = diff.filter_delta(diff.compare(base, after), ignores)
 		if not mark_name.is_empty():
 			_marks[mark_name] = after
 			response["marked"] = mark_name
@@ -229,6 +238,19 @@ func _send(c: Dictionary, response: Dictionary) -> void:
 	var peer: StreamPeerTCP = c["peer"]
 	if peer != null and peer.get_status() == StreamPeerTCP.STATUS_CONNECTED:
 		peer.put_data((JSON.stringify(response) + "\n").to_utf8_buffer())
+
+func _dispatch_tokens(c: Dictionary, id: String, tokens: Array) -> void:
+	var matched: Variant = _verb_from_tokens(tokens)
+	if Registry.is_err(matched):
+		_reply_err(c, id, str(matched.get("code", "bad_params")), str(matched.get("message", "")))
+		return
+	var e: Dictionary = registry.entry(str(matched["name"]))
+	var meta: Dictionary = e["meta"]
+	var params: Variant = _params_from_tokens(meta.get("args", []), matched["rest"])
+	if Registry.is_err(params):
+		_reply_err(c, id, str(params.get("code", "bad_params")), str(params.get("message", "")))
+		return
+	await _dispatch(c, id, str(matched["name"]), params)
 
 # --- Helpers for modules ---
 
@@ -321,6 +343,28 @@ func _ref_for(n: Node) -> String:
 func mark_names() -> Array:
 	return _marks.keys()
 
+func ignore_list() -> Array:
+	return _global_ignores.duplicate()
+
+func ignore_add(pattern: String) -> Dictionary:
+	var p := pattern.strip_edges()
+	if p.is_empty():
+		return err("bad_params", "ignore pattern cannot be empty")
+	if not _global_ignores.has(p):
+		_global_ignores.append(p)
+	return {"ignores": ignore_list()}
+
+func ignore_remove(pattern: String) -> Dictionary:
+	var p := pattern.strip_edges()
+	if p.is_empty():
+		return err("bad_params", "ignore pattern cannot be empty")
+	_global_ignores.erase(p)
+	return {"ignores": ignore_list()}
+
+func ignore_clear() -> Dictionary:
+	_global_ignores.clear()
+	return {"ignores": []}
+
 func _settle(params: Dictionary) -> void:
 	# Variable post-command delay before the --diff/--mark "after" snapshot. One of (mutually
 	# exclusive, precedence time > physics > ticks); default = 0 idle frames (snapshot immediately).
@@ -343,47 +387,125 @@ func screen_pos(node_or_ref: String) -> Variant:
 		return (n as Node2D).global_position
 	return null
 
-func _scene_snapshot() -> Dictionary:
-	return diff.snapshot(target_root(), DIFF_DEPTH, false)
+func _scene_snapshot(ignores: Array = []) -> Dictionary:
+	return diff.snapshot(target_root(), DIFF_DEPTH, false, ignores)
 
 func _ignore_list(params: Dictionary) -> Array:
-	var out := []
+	var out := _global_ignores.duplicate()
 	for tok in str(params.get("ignore", "")).split(",", false):
 		var t := tok.strip_edges()
-		if not t.is_empty():
+		if not t.is_empty() and not out.has(t):
 			out.append(t)
 	return out
 
 # --- gdli() bridge: run a registered verb by its CLI string, in-process, returning the raw result. ---
-# Used by eval scripts (via GdliEval.gdli) and available to plugins. Mirrors the client's verb-match +
-# arg-parse so the agent uses ONE vocabulary — the same strings as the CLI — in code and at the terminal.
+# Used by eval scripts (via GdliEval.gdli) and available to plugins. This is the same token/arg parser
+# the CLI reaches through __gdli_run, so CLI strings mean the same thing in code and at the terminal.
 func call_gdli_string(cmd: String) -> Variant:
 	var toks := _tokenize(cmd)
-	if toks.is_empty():
-		return err("bad_params", "empty gdli() command")
-	var name := ""
-	var rest := []
-	for n in range(mini(toks.size(), 4), 0, -1):
-		var cand := ""
-		for k in n:
-			cand += str(toks[k]) + " "
-		cand = cand.strip_edges()
-		if registry.has(cand):
-			name = cand
-			rest = toks.slice(n)
-			break
-	if name == "":
-		return err("not_found", "unknown verb: " + cmd)
+	var matched: Variant = _verb_from_tokens(toks)
+	if Registry.is_err(matched):
+		return matched
+	var name := str(matched["name"])
 	var e := registry.entry(name)
 	if not registry.module_enabled(str(e["module"])):
 		return err("disabled", "module disabled: " + str(e["module"]))
 	var meta: Dictionary = e["meta"]
 	if meta.get("async", false):
 		return err("bad_params", "gdli() cannot call async verb: " + name)
-	var params: Variant = _params_from_tokens(meta.get("args", []), rest)
+	var params: Variant = _params_from_tokens(meta.get("args", []), matched["rest"])
 	if Registry.is_err(params):
 		return params
-	return (e["handler"] as Callable).call(params)
+	return _call_sync_with_core(e, params)
+
+func call_gdli_string_async(cmd: String) -> Variant:
+	var toks := _tokenize(cmd)
+	var matched: Variant = _verb_from_tokens(toks)
+	if Registry.is_err(matched):
+		return matched
+	var name := str(matched["name"])
+	var e := registry.entry(name)
+	if not registry.module_enabled(str(e["module"])):
+		return err("disabled", "module disabled: " + str(e["module"]))
+	var params: Variant = _params_from_tokens(e["meta"].get("args", []), matched["rest"])
+	if Registry.is_err(params):
+		return params
+	return await _call_with_core(e, params)
+
+func _verb_from_tokens(tokens: Array) -> Variant:
+	if tokens.is_empty():
+		return err("bad_params", "empty gdli command")
+	for n in range(tokens.size(), 0, -1):
+		var cand := ""
+		for k in n:
+			cand += str(tokens[k]) + " "
+		cand = cand.strip_edges()
+		if registry.has(cand):
+			return {"name": cand, "rest": tokens.slice(n)}
+	var rendered := ""
+	for tok in tokens:
+		rendered += str(tok) + " "
+	return err("not_found", "unknown verb: " + rendered.strip_edges())
+
+func _call_sync_with_core(entry: Dictionary, params: Dictionary) -> Variant:
+	var want_diff := params.has("diff")
+	var mark_name := str(params.get("mark", ""))
+	var diff_mark := ""
+	var ignores := _ignore_list(params)
+	var before := {}
+	if want_diff:
+		var dv: Variant = params["diff"]
+		if dv is String and not (dv as String).is_empty() and _marks.has(dv):
+			diff_mark = dv
+		else:
+			before = _scene_snapshot(ignores)
+	var result: Variant = (entry["handler"] as Callable).call(params)
+	if Registry.is_err(result):
+		return result
+	if not want_diff and mark_name.is_empty():
+		return result
+	var after := _scene_snapshot(ignores)
+	var response := {"data": result}
+	if want_diff:
+		var base: Dictionary = _marks.get(diff_mark, {}) if not diff_mark.is_empty() else before
+		response["diff"] = diff.filter_delta(diff.compare(base, after), ignores)
+	if not mark_name.is_empty():
+		_marks[mark_name] = after
+		response["marked"] = mark_name
+	return response
+
+func _call_with_core(entry: Dictionary, params: Dictionary) -> Variant:
+	var meta: Dictionary = entry["meta"]
+	var want_diff := params.has("diff")
+	var mark_name := str(params.get("mark", ""))
+	var diff_mark := ""
+	var ignores := _ignore_list(params)
+	var before := {}
+	if want_diff:
+		var dv: Variant = params["diff"]
+		if dv is String and not (dv as String).is_empty() and _marks.has(dv):
+			diff_mark = dv
+		else:
+			before = _scene_snapshot(ignores)
+	var result: Variant
+	if meta.get("async", false):
+		result = await (entry["handler"] as Callable).call(params)
+	else:
+		result = (entry["handler"] as Callable).call(params)
+	if Registry.is_err(result):
+		return result
+	if not want_diff and mark_name.is_empty():
+		return result
+	await _settle(params)
+	var after := _scene_snapshot(ignores)
+	var response := {"data": result}
+	if want_diff:
+		var base: Dictionary = _marks.get(diff_mark, {}) if not diff_mark.is_empty() else before
+		response["diff"] = diff.filter_delta(diff.compare(base, after), ignores)
+	if not mark_name.is_empty():
+		_marks[mark_name] = after
+		response["marked"] = mark_name
+	return response
 
 func _tokenize(text: String) -> Array:
 	var toks := []
@@ -408,8 +530,13 @@ func _tokenize(text: String) -> Array:
 		toks.append(cur)
 	return toks
 
-# Build a params dict from a verb's arg specs + the remaining tokens (mirrors the client's parseArgs).
+# Build a params dict from a verb's arg specs + the remaining tokens.
 func _params_from_tokens(specs: Array, tokens: Array) -> Variant:
+	var extracted: Variant = _extract_core_tokens(tokens)
+	if Registry.is_err(extracted):
+		return extracted
+	var params: Dictionary = extracted["core"]
+	tokens = extracted["rest"]
 	var flag_specs := {}
 	var pos_specs := []
 	for a in specs:
@@ -417,7 +544,6 @@ func _params_from_tokens(specs: Array, tokens: Array) -> Variant:
 			flag_specs[str(a["name"])] = a
 		else:
 			pos_specs.append(a)
-	var params := {}
 	var positionals := []
 	var i := 0
 	while i < tokens.size():
@@ -432,7 +558,7 @@ func _params_from_tokens(specs: Array, tokens: Array) -> Variant:
 				if i >= tokens.size():
 					return err("bad_params", "flag %s expects a value" % tok)
 				params[key] = _coerce(str(spec.get("type", "string")), str(tokens[i]))
-		elif tok.begins_with("--"):
+		elif tok.begins_with("-") and tok.length() > 1 and not tok.is_valid_float():
 			return err("bad_params", "unknown flag: " + tok)
 		else:
 			positionals.append(tok)
@@ -468,6 +594,55 @@ func _params_from_tokens(specs: Array, tokens: Array) -> Variant:
 			if not params.has(key):
 				return err("bad_params", "missing required arg: " + str(a["name"]))
 	return params
+
+func _extract_core_tokens(tokens: Array) -> Variant:
+	var params := {}
+	var rest := []
+	var i := 0
+	while i < tokens.size():
+		var tok := str(tokens[i])
+		if tok == "--diff":
+			var next: Variant = null
+			if i + 1 < tokens.size():
+				next = tokens[i + 1]
+			if next == null or str(next).begins_with("-"):
+				params["diff"] = true
+			elif _marks.has(str(next)):
+				params["diff"] = str(next)
+				i += 1
+			else:
+				params["diff"] = true
+		elif tok == "--mark":
+			i += 1
+			if i >= tokens.size():
+				return err("bad_params", "flag --mark expects a value")
+			params["mark"] = str(tokens[i])
+		elif tok == "--ticks":
+			i += 1
+			if i >= tokens.size():
+				return err("bad_params", "flag --ticks expects a value")
+			params["ticks"] = int(str(tokens[i]))
+		elif tok == "--physics":
+			i += 1
+			if i >= tokens.size():
+				return err("bad_params", "flag --physics expects a value")
+			params["physics"] = int(str(tokens[i]))
+		elif tok == "--time":
+			i += 1
+			if i >= tokens.size():
+				return err("bad_params", "flag --time expects a value")
+			params["time"] = float(str(tokens[i]))
+		elif tok == "--ignore":
+			i += 1
+			if i >= tokens.size():
+				return err("bad_params", "flag --ignore expects a value")
+			params["ignore"] = str(tokens[i])
+		elif tok == "--data":
+			params["data"] = true
+		else:
+			rest.append(tok)
+		i += 1
+	return {"core": params, "rest": rest}
 
 func _coerce(t: String, v: String) -> Variant:
 	match t:

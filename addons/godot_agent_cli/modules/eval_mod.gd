@@ -10,9 +10,9 @@ const Registry := preload("res://addons/godot_agent_cli/core/registry.gd")
 const EVAL_BASE := "res://addons/godot_agent_cli/core/eval_base.gd"
 const HANDLE_DIR := "res://.gdli/handles"
 
-var s: GdliServer
+var s
 
-func register_into(server: GdliServer) -> void:
+func register_into(server) -> void:
 	s = server
 	s.registry.register("eval", "eval", _eval, {
 		"help": "run GDScript (expr / block / full file); `root`, `argv`, `gdli(\"…\")` in scope.",

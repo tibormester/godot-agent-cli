@@ -5,9 +5,9 @@ extends RefCounted
 const Config := preload("res://addons/godot_agent_cli/core/config.gd")
 const Check := preload("res://addons/godot_agent_cli/core/check_lib.gd")
 
-var s: GdliServer
+var s
 
-func register_into(server: GdliServer) -> void:
+func register_into(server) -> void:
 	s = server
 	s.registry.register("core", "verbs", _list, {
 		"help": "list every registered verb with its target + args (the live registry).",
@@ -17,6 +17,7 @@ func register_into(server: GdliServer) -> void:
 		"help": "report modules + ports; --enable/--disable a module (persists, applies live).",
 		"target": "auto",
 		"args": [
+			{"name": "--list", "type": "bool", "required": false, "default": false, "help": "report modules + ports (default)"},
 			{"name": "--enable", "type": "string", "required": false, "default": "", "help": "re-enable a module"},
 			{"name": "--disable", "type": "string", "required": false, "default": "", "help": "disable a module"},
 		],
@@ -25,6 +26,26 @@ func register_into(server: GdliServer) -> void:
 		"help": "list named diff checkpoints (create via <verb> --mark <name>; re-marking overwrites).",
 		"target": "auto",
 		"args": [{"name": "--list", "type": "bool", "required": false, "default": false, "help": "list checkpoints (default)"}],
+	})
+	s.registry.register("core", "ignore list", _ignore_list, {
+		"help": "list process-global diff ignore globs for this running Godot instance.",
+		"target": "auto",
+		"args": [],
+	})
+	s.registry.register("core", "ignore add", _ignore_add, {
+		"help": "add a process-global diff ignore glob; combines with one-shot --ignore.",
+		"target": "auto",
+		"args": [{"name": "pattern", "type": "string", "required": true, "help": "scene-relative path or glob, e.g. TerminalPanel or UI/*"}],
+	})
+	s.registry.register("core", "ignore remove", _ignore_remove, {
+		"help": "remove a process-global diff ignore glob.",
+		"target": "auto",
+		"args": [{"name": "pattern", "type": "string", "required": true, "help": "exact ignore pattern to remove"}],
+	})
+	s.registry.register("core", "ignore clear", _ignore_clear, {
+		"help": "clear all process-global diff ignore globs.",
+		"target": "auto",
+		"args": [],
 	})
 	s.registry.register("core", "check", _check, {
 		"help": "compile-check every .gd under res://; returns the files that fail to parse (or none).",
@@ -56,6 +77,18 @@ func _config(p: Dictionary) -> Variant:
 
 func _list_marks(_p: Dictionary) -> Variant:
 	return {"marks": s.mark_names()}
+
+func _ignore_list(_p: Dictionary) -> Variant:
+	return {"ignores": s.ignore_list()}
+
+func _ignore_add(p: Dictionary) -> Variant:
+	return s.ignore_add(str(p.get("pattern", "")))
+
+func _ignore_remove(p: Dictionary) -> Variant:
+	return s.ignore_remove(str(p.get("pattern", "")))
+
+func _ignore_clear(_p: Dictionary) -> Variant:
+	return s.ignore_clear()
 
 func _check(_p: Dictionary) -> Variant:
 	return {"failures": Check.failing_scripts("res://")}

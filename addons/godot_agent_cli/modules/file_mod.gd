@@ -2,9 +2,9 @@ extends RefCounted
 ## file module — project file CRUD (res://). Editor-pinned (authoring); default-off in strict preset.
 ## The host already has native file tools; this exists for in-engine project files.
 
-var s: GdliServer
+var s
 
-func register_into(server: GdliServer) -> void:
+func register_into(server) -> void:
 	s = server
 	s.registry.register("file", "file create", _create, {
 		"help": "write a project file (creates parent dirs).", "target": "editor",
