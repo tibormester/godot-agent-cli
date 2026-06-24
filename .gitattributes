@@ -1,18 +1,7 @@
-# Normalize EOL for all files that Git considers text files.
+# Normalize line endings for all files that Git considers text files.
 * text=auto eol=lf
 
-# Keep GitHub/development files in the repository, but omit them from
-# git-archive based Godot Asset Library downloads.
-/.editorconfig export-ignore
-/.gitignore export-ignore
-/.gitattributes export-ignore
-/README.md export-ignore
-/LICENSE export-ignore
-/package.json export-ignore
-/package-lock.json export-ignore
-/scripts export-ignore
-/dist export-ignore
-/.gdli export-ignore
-/screenshots export-ignore
-/*.gdli.log export-ignore
-/*.png.tmp export-ignore
+# Only include the addons folder when downloading from the Asset Library.
+/**        export-ignore
+/addons    !export-ignore
+/addons/** !export-ignore
